@@ -6,25 +6,96 @@ output: html_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = FALSE)
+library(tidyverse)
+library(tidycensus)
+library(tigris)
+options(tigris_use_cache = TRUE)
 ```
 
-## R Markdown
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+```{r Load ACS variables used as proxy measures of HTC communities, cache=TRUE}
+#WA HTC community list from Census Bureau:
+  # Recent Immigrants
+  # Refugees
+  # Rural
+  # Homeless
+  # Anti-government 
+  # Seniors
+  # African-American
+  # American Indian/Alaska Native
+  # Asian-American (Chinese)
+  # Asian-American (Filipino)
+  # Asian-American (Indian/Sub Continent)
+  # Asian-American (Korean)
+  # Asian-American (Vietnamese)
+  # Children (younger than 5)
+  # Disabled
+  # College Students
+  # Faith-Based Community
+  # Hispanic/ Latino
+  # Renters/Highly Mobile
+  # LGBTQ
+  # Middle-eastern North African MENA
+  # Migrant Workers
+  # Military/ Veterans
+  # Pacific Islander
+  # Russian 
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+#load ACS census variables
+#load variable list
+vlist <- load_variables(2018, "acs5", cache = TRUE)
 
-```{r cars}
-summary(cars)
+
+
+#load ACS city population data
+ACS_variables_raw <- get_acs(geography = "tract",
+                             variables = c(total_pop = "B03002_001",
+                                           black_pop = "B03002_004",
+                                           unweighted_sample_count_of_pop = "B00001_001"),
+                             state = "WA",
+                             year = 2018,
+                             geometry = TRUE,
+                             output = "wide")
+
 ```
 
-## Including Plots
 
-You can also embed plots, for example:
-
-```{r pressure, echo=FALSE}
-plot(pressure)
+```{r Clean ACS data}
+#select only necessary variables
+ACS_variables_clean <- ACS_variables_raw %>% 
+  select(-black_popM, -total_popM)
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+```{r Analyze individual HTCs}
+#calculate pct figures
+ACS_variables_clean <- ACS_variables_clean %>% 
+  mutate(pct_black = black_popE / total_popE)
+```
+
+
+```{r Aggregate HTCs}
+
+```
+
+
+```{r Create maps}
+ACS_variables_clean %>%
+  ggplot(aes(fill = pct_black)) + 
+  geom_sf(color = NA) + 
+  scale_fill_viridis_c(option = "viridis") 
+
+
+
+
+```
+
+```{r Test Mapview package}
+library(mapview)
+
+mapview(ACS_variables_clean, zcol = "pct_black")
+
+
+```
+
