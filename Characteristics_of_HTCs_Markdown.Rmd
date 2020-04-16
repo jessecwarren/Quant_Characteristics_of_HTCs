@@ -264,9 +264,6 @@ ACS_2018_variables_county_clean <- select_relevant_ACS_variables_function(ACS_20
 ```
 
 
-
-
-
 ```{r Aggregate HTCs}
 #This code creates a column of sum of all HTCs
 #create function to use for both counties and tracts
@@ -308,14 +305,13 @@ st_erase <- function(x, y) {
 KC_water <- tigris::area_water("WA", "King", class = "sf")
 ACS_2018_variables_tract_clean <- ACS_2018_variables_tract_clean %>%
   st_erase(KC_water)
-ACS_2018_variables_county_clean <- ACS_2018_variables_tract_clean %>% 
+ACS_2018_variables_county_clean <- ACS_2018_variables_county_clean %>% 
   st_erase(KC_water)
 
 
 
-
 #create ggplot uniform map format function. 
-  #has two zoom options: zoom_on_KC for King County, and zoom_on_Seattle for Seattle
+  #-has two zoom options: zoom_on_KC for King County, and zoom_on_Seattle for Seattle
 ggplot_unform_map_format_function <- function(df, variable, zoom_on_KC = FALSE, zoom_on_Seattle = FALSE) {
   df %>%
     ggplot(aes_string(fill = variable)) + 
@@ -329,23 +325,8 @@ ggplot_unform_map_format_function <- function(df, variable, zoom_on_KC = FALSE, 
 }
 
 
-#pct HTC map
-ggplot_unform_map_format_function(ACS_2018_variables_tract_clean, "pct_any_HTC", zoom_on_KC = FALSE)
-
-
-
-
-
-
-ACS_2018_variables_tract_clean %>%
-    ggplot(aes_string(fill = "pct_any_HTC")) + 
-    geom_sf(color = "#E4E4E4", size = .1) +
-    coord_sf(xlim = c(-122.47, -122.19), ylim = c(47.495, 47.74)) +
-    theme(legend.position = "bottom") +
-    ggtitle("pct_any_HTC") +
-    theme_void() +
-    scale_fill_viridis_c(option = "viridis")
-
+#percent of any HTC map
+ggplot_unform_map_format_function(ACS_2018_variables_county_clean, "college_studentsE")
 
 ```
 
