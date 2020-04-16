@@ -10,6 +10,7 @@ knitr::opts_chunk$set(echo = FALSE)
 library(tidyverse)
 library(tidycensus)
 library(tigris)
+library(sf)
 options(tigris_use_cache = TRUE)
 ```
 
@@ -228,27 +229,29 @@ ACS_2018_variables_county_clean <- combine_ACS_variables_function(ACS_2018_varia
 #create function to select only necessary variables
 select_relevant_ACS_variables_function <- function(df) {
   df %>% 
-    select(starts_with("total_pop"),
-          unweighted_sample_count_of_popE,
-          starts_with("foreign_born_entered_US_after_2010"),
-          starts_with("seniors"),
-          starts_with("black_or_african_american"),
-          starts_with("american_indian_and_alaska_native"),
-          starts_with("asian_american_chinese_or_taiwanese_alone"),
-          starts_with("asian_american_filipino_alone"),
-          starts_with("asian_american_indian_and_subcontinent_alone"),
-          starts_with("asian_american_korean_alone"),
-          starts_with("asian_american_vietnamese_alone"),
-          starts_with("children_under_5"),
-          starts_with("have_disability"),
-          starts_with("college_students"),
-          starts_with("hispanic_or_latino"),
-          starts_with("renters"),
-          starts_with("MENA_origin"),
-          starts_with("vacant_housing_for_migrant_workers"),
-          starts_with("veteran_status"),
-          starts_with("native_hawaiian_or_API_alone"),
-          starts_with("russian_ancestry")
+    select(GEOID,
+           NAME,
+           starts_with("total_pop"),
+           unweighted_sample_count_of_popE,
+           starts_with("foreign_born_entered_US_after_2010"),
+           starts_with("seniors"),
+           starts_with("black_or_african_american"),
+           starts_with("american_indian_and_alaska_native"),
+           starts_with("asian_american_chinese_or_taiwanese_alone"),
+           starts_with("asian_american_filipino_alone"),
+           starts_with("asian_american_indian_and_subcontinent_alone"),
+           starts_with("asian_american_korean_alone"),
+           starts_with("asian_american_vietnamese_alone"),
+           starts_with("children_under_5"),
+           starts_with("have_disability"),
+           starts_with("college_students"),
+           starts_with("hispanic_or_latino"),
+           starts_with("renters"),
+           starts_with("MENA_origin"),
+           starts_with("vacant_housing_for_migrant_workers"),
+           starts_with("veteran_status"),
+           starts_with("native_hawaiian_or_API_alone"),
+           starts_with("russian_ancestry")
           )
 }
 
@@ -258,39 +261,90 @@ ACS_2018_variables_county_clean <- select_relevant_ACS_variables_function(ACS_20
   select(-total_popM) #remove margin of error for total population because it doesnt exist for counties
 
 
-
-
-
-
-
-
-
-
-#remove rename variables to match HTC names Census uses
-
-
 ```
 
 
-```{r Analyze individual HTCs}
-#calculate pct figures
-ACS_variables_clean <- ACS_variables_clean %>% 
-  mutate(pct_black = black_popE / total_popE)
-```
+
 
 
 ```{r Aggregate HTCs}
+#This code creates a column of sum of all HTCs
+#create function to use for both counties and tracts
+any_HTC_sum_function <- function(df) {
+  df %>% 
+    as.data.frame() %>% 
+    select(-total_popE, -unweighted_sample_count_of_popE, -NAME) %>% 
+    mutate(any_HTC = rowSums(select(., ends_with("E")))) %>% 
+    select(GEOID, any_HTC) %>% 
+    left_join(df, by = c("GEOID")) %>% 
+    select(GEOID, NAME, total_popE, everything()) %>% 
+    st_sf(sf_column_name = "geometry")
+}
+
+#apply function
+ACS_2018_variables_tract_clean <- any_HTC_sum_function(ACS_2018_variables_tract_clean)
+ACS_2018_variables_county_clean <- any_HTC_sum_function(ACS_2018_variables_county_clean)
+
+#create pct HTC category
+ACS_2018_variables_tract_clean <- ACS_2018_variables_tract_clean %>% 
+  mutate(pct_any_HTC = any_HTC / total_popE)
+
+ACS_2018_variables_county_clean <- ACS_2018_variables_county_clean %>% 
+  mutate(pct_any_HTC = any_HTC / total_popE)
+
 
 ```
 
+```{r Analyze individual HTCs}
+#calculate pct figures
+
+```
 
 ```{r Create maps}
-ACS_variables_clean %>%
-  ggplot(aes(fill = pct_black)) + 
-  geom_sf(color = NA) + 
-  scale_fill_viridis_c(option = "viridis") 
+#erase water in King County
+st_erase <- function(x, y) {
+  st_difference(x, st_union(y))
+}
+KC_water <- tigris::area_water("WA", "King", class = "sf")
+ACS_2018_variables_tract_clean <- ACS_2018_variables_tract_clean %>%
+  st_erase(KC_water)
+ACS_2018_variables_county_clean <- ACS_2018_variables_tract_clean %>% 
+  st_erase(KC_water)
 
 
+
+
+#create ggplot uniform map format function. 
+  #has two zoom options: zoom_on_KC for King County, and zoom_on_Seattle for Seattle
+ggplot_unform_map_format_function <- function(df, variable, zoom_on_KC = FALSE, zoom_on_Seattle = FALSE) {
+  df %>%
+    ggplot(aes_string(fill = variable)) + 
+    geom_sf(color = NA) +
+    {if(zoom_on_KC == TRUE) coord_sf(xlim = c(-122.43, -121.18), ylim = c(47.15, 47.77))} +
+    {if(zoom_on_Seattle == TRUE) coord_sf(xlim = c(-122.5, -122.248), ylim = c(47.495, 47.74))} +
+    theme(legend.position = "bottom") +
+    ggtitle(paste("Map of", variable)) +
+    theme_void() +
+    scale_fill_viridis_c(option = "viridis")
+}
+
+
+#pct HTC map
+ggplot_unform_map_format_function(ACS_2018_variables_tract_clean, "pct_any_HTC", zoom_on_KC = FALSE)
+
+
+
+
+
+
+ACS_2018_variables_tract_clean %>%
+    ggplot(aes_string(fill = "pct_any_HTC")) + 
+    geom_sf(color = "#E4E4E4", size = .1) +
+    coord_sf(xlim = c(-122.47, -122.19), ylim = c(47.495, 47.74)) +
+    theme(legend.position = "bottom") +
+    ggtitle("pct_any_HTC") +
+    theme_void() +
+    scale_fill_viridis_c(option = "viridis")
 
 
 ```
@@ -298,8 +352,8 @@ ACS_variables_clean %>%
 ```{r Test Mapview package}
 library(mapview)
 
-mapview(ACS_variables_clean, zcol = "pct_black")
+mapview(ACS_2018_variables_tract_clean, zcol = "pct_any_HTC")
 
 
-```
+s```
 
