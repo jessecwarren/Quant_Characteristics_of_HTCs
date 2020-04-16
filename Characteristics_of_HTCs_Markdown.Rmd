@@ -14,6 +14,8 @@ options(tigris_use_cache = TRUE)
 ```
 
 
+
+
 ```{r Load ACS variables used as proxy measures of HTC communities, cache=TRUE}
 #WA HTC community list from Census Bureau:
   # Recent Immigrants
@@ -46,13 +48,78 @@ options(tigris_use_cache = TRUE)
 #load variable list
 vlist <- load_variables(2018, "acs5", cache = TRUE)
 
+#list of variables
+ACS_2018_proxy_variables <- c(total_pop = "B01001_001",
+                              unweighted_sample_count_of_pop = "B00001_001",
+                              foreign_born_entered_US_after_2010 = "B05005_004",
+                              age_65_to_66_female = "B01001_044",
+                              age_67_to_69_female = "B01001_045",
+                              age_70_to_74_female = "B01001_046",
+                              age_75_to_79_female = "B01001_047",
+                              age_80_to_84_female = "B01001_048",
+                              age_85_plus_female = "B01001_049",
+                              age_65_to_66_male = "B01001_020",
+                              age_67_to_69_male = "B01001_021",
+                              age_70_to_74_male = "B01001_022",
+                              age_75_to_79_male = "B01001_023",
+                              age_80_to_84_male = "B01001_024",
+                              age_85_plus_male = "B01001_025",
+                              black_or_african_american = "B01001B_001",
+                              american_indian_and_alaska_native = "B01001C_001",
+                              asian_american_chinese_alone = "B02015_007",
+                              asian_american_taiwanese_alone = "B02015_020",
+                              asian_american_filipino_alone = "B02015_008",
+                              asian_american_indian_and_subcontinent_alone = "B02015_002",
+                              asian_american_korean_alone = "B02015_012",
+                              asian_american_vietnamese_alone = "B02015_022",
+                              age_under_5_female = "B01001_027",
+                              age_under_5_male = "B01001_003",
+                              disability_under_5_male = "B18101_004",
+                              disability_5_to_17_male = "B18101_007",
+                              disability_18_to_34_male = "B18101_010",
+                              disability_35_to_64_male = "B18101_013",
+                              disability_65_to_74_male = "B18101_016",
+                              disability_75_plus_male = "B18101_019",
+                              disability_under_5_female = "B18101_023",
+                              disability_5_to_17_female = "B18101_026",
+                              disability_18_to_34_female = "B18101_029",
+                              disability_35_to_64_female = "B18101_032",
+                              disability_65_to_74_female = "B18101_035",
+                              disability_75_plus_female = "B18101_038",
+                              enrolled_public_college_or_grad_school_male = "B14004_003",
+                              enrolled_private_college_or_grad_school_male = "B14004_008",
+                              enrolled_public_college_or_grad_school_female = "B14004_019",
+                              enrolled_private_college_or_grad_school_female = "B14004_024",
+                              hispanic_or_latino = "B03001_003",
+                              renters = "B25026_009",
+                              MENA_northern_africa = "B05006_101",
+                              MENA_jordan = "B05006_081",
+                              MENA_kuwait = "B05006_082",
+                              MENA_lebanon = "B05006_083",
+                              MENA_saudi_arabia = "B05006_084",
+                              MENA_syria = "B05006_085",
+                              MENA_yemen = "B05006_086",
+                              MENA_iran = "B05006_060",
+                              MENA_iraq = "B05006_079",
+                              vacant_housing_for_migrant_workers = "B25004_007",
+                              veterans_age_18_to_64 = "C21007_003",
+                              veterans_age_64_plus = "C21007_018",
+                              native_hawaiian_or_API_alone = "B02001_006",
+                              russian_ancestry = "B04006_064"
+                              )
 
 
-#load ACS city population data
-ACS_variables_raw <- get_acs(geography = "tract",
-                             variables = c(total_pop = "B03002_001",
-                                           black_pop = "B03002_004",
-                                           unweighted_sample_count_of_pop = "B00001_001"),
+#load ACS census tract data
+ACS_2018_variables_tract_raw <- get_acs(geography = "tract",
+                             variables = ACS_2018_proxy_variables,
+                             state = "WA",
+                             year = 2018,
+                             geometry = TRUE,
+                             output = "wide")
+
+#load ACS county data
+ACS_2018_variables_county_raw <- get_acs(geography = "county",
+                             variables = ACS_2018_proxy_variables,
                              state = "WA",
                              year = 2018,
                              geometry = TRUE,
@@ -62,9 +129,146 @@ ACS_variables_raw <- get_acs(geography = "tract",
 
 
 ```{r Clean ACS data}
-#select only necessary variables
-ACS_variables_clean <- ACS_variables_raw %>% 
-  select(-black_popM, -total_popM)
+
+#rowmeans function to create average margin of errors
+my_rowmeans = function(...) Reduce(`+`, list(...))/length(list(...))
+
+#create function to combine variables to create single metrics for each HTC, drop unnecessary variables
+combine_ACS_variables_function <- function(df) {
+  df %>% 
+    #combine variables to get single variable for each HTC
+    mutate(seniorsE = age_65_to_66_femaleE +
+                    age_67_to_69_femaleE +
+                    age_70_to_74_femaleE +
+                    age_75_to_79_femaleE +
+                    age_80_to_84_femaleE +
+                    age_85_plus_femaleE +
+                    age_65_to_66_maleE +
+                    age_67_to_69_maleE +
+                    age_70_to_74_maleE +
+                    age_75_to_79_maleE +
+                    age_80_to_84_maleE +
+                    age_85_plus_maleE,
+         seniorsM = my_rowmeans(age_65_to_66_femaleM,
+                             age_67_to_69_femaleM),
+         children_under_5E = age_under_5_femaleE +
+                            age_under_5_maleE,
+         children_under_5M = my_rowmeans(age_under_5_femaleM,
+                                          age_under_5_maleM),
+         asian_american_chinese_or_taiwanese_aloneE = asian_american_chinese_aloneE +
+                                                      asian_american_taiwanese_aloneE,
+         asian_american_chinese_or_taiwanese_aloneM = my_rowmeans(asian_american_chinese_aloneM,
+                                                      asian_american_taiwanese_aloneM),
+         have_disabilityE = disability_under_5_maleE +
+                       disability_5_to_17_maleE +
+                       disability_18_to_34_maleE +
+                       disability_35_to_64_maleE +
+                       disability_65_to_74_maleE +
+                       disability_75_plus_maleE +
+                       disability_under_5_femaleE +
+                       disability_5_to_17_femaleE +
+                       disability_18_to_34_femaleE +
+                       disability_35_to_64_femaleE +
+                       disability_65_to_74_femaleE +
+                       disability_75_plus_femaleE,
+          have_disabilityM = my_rowmeans(disability_under_5_maleM,
+                                    disability_5_to_17_maleM,
+                                    disability_18_to_34_maleM,
+                                    disability_35_to_64_maleM,
+                                    disability_65_to_74_maleM,
+                                    disability_75_plus_maleM,
+                                    disability_under_5_femaleM,
+                                    disability_5_to_17_femaleM,
+                                    disability_18_to_34_femaleM,
+                                    disability_35_to_64_femaleM,
+                                    disability_65_to_74_femaleM,
+                                    disability_75_plus_femaleM),
+         college_studentsE = enrolled_public_college_or_grad_school_maleE +
+                             enrolled_private_college_or_grad_school_maleE +
+                             enrolled_public_college_or_grad_school_femaleE +
+                             enrolled_private_college_or_grad_school_femaleE,
+         college_studentsM = my_rowmeans(enrolled_public_college_or_grad_school_maleM,
+                                         enrolled_private_college_or_grad_school_maleM,
+                                         enrolled_public_college_or_grad_school_femaleM,
+                                         enrolled_private_college_or_grad_school_femaleM),
+         MENA_originE =  MENA_northern_africaE +
+                              MENA_jordanE +
+                              MENA_kuwaitE +
+                              MENA_lebanonE +
+                              MENA_saudi_arabiaE +
+                              MENA_syriaE +
+                              MENA_yemenE +
+                              MENA_iranE +
+                              MENA_iraqE,
+         MENA_originM = my_rowmeans(MENA_northern_africaM,
+                              MENA_jordanM,
+                              MENA_kuwaitM,
+                              MENA_lebanonM,
+                              MENA_saudi_arabiaM,
+                              MENA_syriaM,
+                              MENA_yemenM,
+                              MENA_iranM,
+                              MENA_iraqM),
+         veteran_statusE = veterans_age_18_to_64E +
+                     veterans_age_64_plusE,
+         veteran_statusM = my_rowmeans(veterans_age_18_to_64M,
+                     veterans_age_64_plusM)
+  )
+}
+
+
+#run variable combination function over tracts and counties
+ACS_2018_variables_tract_clean <- ACS_2018_variables_tract_raw
+ACS_2018_variables_tract_clean <- combine_ACS_variables_function(ACS_2018_variables_tract_clean)
+
+ACS_2018_variables_county_clean <- ACS_2018_variables_county_raw
+ACS_2018_variables_county_clean <- combine_ACS_variables_function(ACS_2018_variables_county_clean)
+
+
+#create function to select only necessary variables
+select_relevant_ACS_variables_function <- function(df) {
+  df %>% 
+    select(starts_with("total_pop"),
+          unweighted_sample_count_of_popE,
+          starts_with("foreign_born_entered_US_after_2010"),
+          starts_with("seniors"),
+          starts_with("black_or_african_american"),
+          starts_with("american_indian_and_alaska_native"),
+          starts_with("asian_american_chinese_or_taiwanese_alone"),
+          starts_with("asian_american_filipino_alone"),
+          starts_with("asian_american_indian_and_subcontinent_alone"),
+          starts_with("asian_american_korean_alone"),
+          starts_with("asian_american_vietnamese_alone"),
+          starts_with("children_under_5"),
+          starts_with("have_disability"),
+          starts_with("college_students"),
+          starts_with("hispanic_or_latino"),
+          starts_with("renters"),
+          starts_with("MENA_origin"),
+          starts_with("vacant_housing_for_migrant_workers"),
+          starts_with("veteran_status"),
+          starts_with("native_hawaiian_or_API_alone"),
+          starts_with("russian_ancestry")
+          )
+}
+
+#run variable selection function over tracts and counties
+ACS_2018_variables_tract_clean <- select_relevant_ACS_variables_function(ACS_2018_variables_tract_clean)
+ACS_2018_variables_county_clean <- select_relevant_ACS_variables_function(ACS_2018_variables_county_clean) %>% 
+  select(-total_popM) #remove margin of error for total population because it doesnt exist for counties
+
+
+
+
+
+
+
+
+
+
+#remove rename variables to match HTC names Census uses
+
+
 ```
 
 
