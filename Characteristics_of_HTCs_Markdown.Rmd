@@ -11,6 +11,8 @@ library(tidyverse)
 library(tidycensus)
 library(tigris)
 library(sf)
+library(xlsx)
+library(ggpubr)
 options(tigris_use_cache = TRUE)
 ```
 
@@ -292,10 +294,73 @@ ACS_2018_variables_county_clean <- ACS_2018_variables_county_clean %>%
 
 ```
 
-```{r Analyze individual HTCs}
-#calculate pct figures
+```{r Calculate HTC percent figures}
+#define function to calculate percent figures
+calculate_HTC_percentages_function <- function(df) {
+  df %>% 
+   mutate(pct_foreign_born_entered_US_after_2010E = foreign_born_entered_US_after_2010E / total_popE,
+         pct_seniorsE = seniorsE / total_popE,
+         pct_black_or_african_americanE = black_or_african_americanE / total_popE,
+         pct_american_indian_and_alaska_nativeE = american_indian_and_alaska_nativeE / total_popE,
+         pct_asian_american_chinese_or_taiwanese_aloneE = asian_american_chinese_or_taiwanese_aloneE / total_popE,
+         pct_asian_american_filipino_aloneE = asian_american_filipino_aloneE / total_popE,
+         pct_asian_american_indian_and_subcontinent_aloneE = asian_american_indian_and_subcontinent_aloneE / total_popE,
+         pct_asian_american_korean_aloneE = asian_american_korean_aloneE / total_popE,
+         pct_asian_american_vietnamese_aloneE = asian_american_vietnamese_aloneE / total_popE,
+         pct_children_under_5E = children_under_5E / total_popE,
+         pct_have_disabilityE = have_disabilityE / total_popE,
+         pct_college_studentsE = college_studentsE / total_popE,
+         pct_hispanic_or_latinoE = hispanic_or_latinoE / total_popE,
+         pct_have_disabilityE = have_disabilityE / total_popE,
+         pct_college_studentsE = college_studentsE / total_popE,
+         pct_hispanic_or_latinoE = hispanic_or_latinoE / total_popE,
+         pct_rentersE = rentersE / total_popE,
+         pct_MENA_originE = MENA_originE / total_popE,
+         pct_vacant_housing_for_migrant_workersE = vacant_housing_for_migrant_workersE / total_popE,
+         pct_veteran_statusE = veteran_statusE / total_popE,
+         pct_native_hawaiian_or_API_aloneE = native_hawaiian_or_API_aloneE / total_popE,
+         pct_russian_ancestryE = russian_ancestryE / total_popE
+  )
+}
+
+#apply function to create percentage calculations
+ACS_2018_variables_tract_clean <- calculate_HTC_percentages_function(ACS_2018_variables_tract_clean)
+ACS_2018_variables_county_clean <- calculate_HTC_percentages_function(ACS_2018_variables_county_clean)
+```
+
+```{r Create summary stats}
+#calculate total number of each population in WA
+summary_of_all_HTCs_tract <- ACS_2018_variables_tract_clean %>% 
+  as.data.frame() %>% 
+  select(ends_with("E"), -NAME, -unweighted_sample_count_of_popE, -geometry, -starts_with("pct")) %>% 
+  colSums() %>% 
+  as.data.frame() %>% 
+  rownames_to_column()
+colnames(summary_of_all_HTCs_tract)[1] <- "HTC"
+colnames(summary_of_all_HTCs_tract)[2] <- "pop"
+
+#calculate total percent of state pop, save as spreadsheet
+state_pop <- summary_of_all_HTCs_tract$pop[1] %>% as.numeric
+summary_of_all_HTCs_tract <- summary_of_all_HTCs_tract %>% 
+  mutate(pct_state = pop / state_pop) %>% 
+  write.csv("Summary_stats/total_HTC_pops.csv")
+
+#calculate 5 most populous tracts for each HTC
+ACS_2018_variables_tract_clean %>% 
+  as.data.frame() %>% 
+  select(ends_with("E"), -NAME, -unweighted_sample_count_of_popE, -geometry, -starts_with("pct")) %>% 
+  gather(measure, values) %>%
+  group_by(measure) %>%
+  summarise(data = list(values)) %>%
+  rowwise() %>%
+  mutate(data = list(data[rev(order(data))][1:3])) %>%
+  unnest(data) %>%
+  mutate(top = rep(c("top_1", "top_2", "top_3"), length.out = nrow(.))) %>%
+  spread(top, data)
 
 ```
+
+
 
 ```{r Create maps}
 #erase water in King County
@@ -308,7 +373,16 @@ ACS_2018_variables_tract_clean <- ACS_2018_variables_tract_clean %>%
 ACS_2018_variables_county_clean <- ACS_2018_variables_county_clean %>% 
   st_erase(KC_water)
 
-
+#test plots to help develop function
+ACS_2018_variables_county_clean %>%
+    ggplot(aes_string(fill = "pct_rentersE")) + 
+    geom_sf(color = NA) +
+    #{if(zoom_on_KC == TRUE) coord_sf(xlim = c(-122.43, -121.18), ylim = c(47.15, 47.77))} +
+    #{if(zoom_on_Seattle == TRUE) coord_sf(xlim = c(-122.5, -122.248), ylim = c(47.495, 47.74))} +
+    theme(legend.position = "bottom") +
+    ggtitle(paste("Map of", "pct_rentersE")) +
+    theme_void() +
+    scale_fill_viridis_c(option = "viridis")
 
 #create ggplot uniform map format function. 
   #-has two zoom options: zoom_on_KC for King County, and zoom_on_Seattle for Seattle
@@ -318,15 +392,47 @@ ggplot_unform_map_format_function <- function(df, variable, zoom_on_KC = FALSE, 
     geom_sf(color = NA) +
     {if(zoom_on_KC == TRUE) coord_sf(xlim = c(-122.43, -121.18), ylim = c(47.15, 47.77))} +
     {if(zoom_on_Seattle == TRUE) coord_sf(xlim = c(-122.5, -122.248), ylim = c(47.495, 47.74))} +
-    theme(legend.position = "bottom") +
-    ggtitle(paste("Map of", variable)) +
+    ggtitle(variable) +
     theme_void() +
-    scale_fill_viridis_c(option = "viridis")
+    scale_fill_viridis_c(option = "viridis", name = "") +
+    theme(legend.position = "none")
 }
 
+#test function
+ggplot_unform_map_format_function(ACS_2018_variables_county_clean, "pct_rentersE")
 
-#percent of any HTC map
-ggplot_unform_map_format_function(ACS_2018_variables_county_clean, "college_studentsE")
+
+#create list of variables needed to create plots for
+variables_to_plot_list <- colnames(ACS_2018_variables_county_clean[endsWith(colnames(ACS_2018_variables_county_clean), "E")])
+variables_to_plot_list <- variables_to_plot_list[-c(1:3)]
+variables_to_plot_list <- variables_to_plot_list[-length(variables_to_plot_list)]
+variable_plot_length <- length(variables_to_plot_list)
+
+list_of_variables_for_maps <- data.frame("id" = 1:(variable_plot_length),
+                                         "variable_to_plot" = c(variables_to_plot_list
+                                                               ),
+                                         stringsAsFactors = FALSE)
+
+
+#create all plots
+map_list_tract = list()
+for(i in 1:variable_plot_length){
+  p <- ggplot_unform_map_format_function(ACS_2018_variables_tract_clean, list_of_variables_for_maps$variable_to_plot[i])
+  map_list_tract[[i]] <- p
+}
+map_list_county = list()
+for(i in 1:variable_plot_length){
+  p <- ggplot_unform_map_format_function(ACS_2018_variables_tract_clean, list_of_variables_for_maps$variable_to_plot[i])
+  map_list_county[[i]] <- p
+}
+
+#save all plots as jpgs
+for(i in 1:length(map_list_tract)){
+  ggsave(map_list_tract[[i]], file=paste0("Maps/tract_plot_", list_of_variables_for_maps$variable_to_plot[i],".jpg"), width = 14, height = 5, units = "cm")
+}
+for(i in 1:length(map_list_county)){
+  ggsave(map_list_county[[i]], file=paste0("Maps/county_plot_", list_of_variables_for_maps$variable_to_plot[i],".jpg"), width = 14, height = 5, units = "cm")
+}
 
 ```
 
@@ -336,5 +442,5 @@ library(mapview)
 mapview(ACS_2018_variables_tract_clean, zcol = "pct_any_HTC")
 
 
-s```
+```
 
