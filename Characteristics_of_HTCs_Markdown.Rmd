@@ -376,15 +376,16 @@ ACS_2018_variables_county_clean <- ACS_2018_variables_county_clean %>%
   st_erase(KC_water)
 
 #test plots to help develop function
-ACS_2018_variables_county_clean %>%
-    ggplot(aes_string(fill = "pct_rentersE")) + 
+ACS_2018_variables_tract_clean %>%
+    ggplot(aes_string(fill = "seniorsE")) + 
     geom_sf(color = NA) +
     #{if(zoom_on_KC == TRUE) coord_sf(xlim = c(-122.43, -121.18), ylim = c(47.15, 47.77))} +
     #{if(zoom_on_Seattle == TRUE) coord_sf(xlim = c(-122.5, -122.248), ylim = c(47.495, 47.74))} +
     theme(legend.position = "bottom") +
-    ggtitle(paste("Map of", "pct_rentersE")) +
+    ggtitle(paste("Map of", "seniorsE")) +
     theme_void() +
-    scale_fill_viridis_c(option = "viridis")
+    #scale_fill_viridis_c(option = "viridis") +
+    scale_fill_continuous(limits = c(0, 1000), oob=squish)
 
 library(extrafont)
 font_import()
@@ -400,7 +401,7 @@ ggplot_unform_map_format_function <- function(df, variable, pct = FALSE, zoom_on
     {if(zoom_on_Seattle == TRUE) coord_sf(xlim = c(-122.5, -122.248), ylim = c(47.495, 47.74))} +
     ggtitle(title) +
     theme_void() +
-    scale_fill_viridis_c(option = "viridis", name = "", limits = c(0, 1000)) +
+    scale_fill_viridis_c(option = "viridis", name = "", limits = c(0, 1000), oob=squish) +
     {if(pct == TRUE) scale_fill_viridis_c(option = "viridis", name = "", limits = c(0, 1), labels = percent)} +
     theme(legend.position = "right") +
     theme(text = element_text(family = "Georgia", size = 10)) +
@@ -418,17 +419,31 @@ ggplot_unform_map_format_function(ACS_2018_variables_tract_clean, "rentersE", pc
 
 
 #plots for paper
-#renters per capita
-ggplot_unform_map_format_function(ACS_2018_variables_tract_clean, "pct_rentersE", pct = TRUE, title = "Renters per capita", save = TRUE)
+  #total pops
+    #renters total
+    ggplot_unform_map_format_function(ACS_2018_variables_tract_clean, "rentersE", title = "Renters", save = TRUE)
+    
+    #seniors total
+    ggplot_unform_map_format_function(ACS_2018_variables_tract_clean, "seniorsE", title = "Seniors", save = TRUE)
+    
+    #disabled total
+    ggplot_unform_map_format_function(ACS_2018_variables_tract_clean, "have_disabilityE", title = "People with disabilities", save = TRUE)
+    
+    #hispanic/latino total
+    ggplot_unform_map_format_function(ACS_2018_variables_tract_clean, "hispanic_or_latinoE", title = "Hispanic/Latino people", save = TRUE)
 
-#seniors per capita
-ggplot_unform_map_format_function(ACS_2018_variables_tract_clean, "pct_seniorsE", pct = TRUE, title = "Seniors per capita", save = TRUE)
-
-#disabled per capita
-ggplot_unform_map_format_function(ACS_2018_variables_tract_clean, "pct_have_disabilityE", pct = TRUE, title = "People with disabilities per capita", save = TRUE)
-
-#hispanic/latino per capita
-ggplot_unform_map_format_function(ACS_2018_variables_tract_clean, "pct_hispanic_or_latinoE", pct = TRUE, title = "Hispanic/Latino people per capita", save = TRUE)
+  #per capita pops
+    #renters per capita
+    ggplot_unform_map_format_function(ACS_2018_variables_tract_clean, "pct_rentersE", pct = TRUE, title = "Renters per capita", save = TRUE)
+    
+    #seniors per capita
+    ggplot_unform_map_format_function(ACS_2018_variables_tract_clean, "pct_seniorsE", pct = TRUE, title = "Seniors per capita", save = TRUE)
+    
+    #disabled per capita
+    ggplot_unform_map_format_function(ACS_2018_variables_tract_clean, "pct_have_disabilityE", pct = TRUE, title = "People with disabilities per capita", save = TRUE)
+    
+    #hispanic/latino per capita
+    ggplot_unform_map_format_function(ACS_2018_variables_tract_clean, "pct_hispanic_or_latinoE", pct = TRUE, title = "Hispanic/Latino people per capita", save = TRUE)
 
 
 
