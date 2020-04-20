@@ -3,6 +3,8 @@ title: "Characteristics_of_HTCs"
 author: "Jesse Warren"
 date: "4/4/2020"
 output: html_document
+editor_options: 
+  chunk_output_type: console
 ---
 
 ```{r setup, include=FALSE}
@@ -11,8 +13,8 @@ library(tidyverse)
 library(tidycensus)
 library(tigris)
 library(sf)
-library(xlsx)
 library(ggpubr)
+library(scales)
 options(tigris_use_cache = TRUE)
 ```
 
@@ -384,48 +386,186 @@ ACS_2018_variables_county_clean %>%
     theme_void() +
     scale_fill_viridis_c(option = "viridis")
 
+library(extrafont)
+font_import()
+loadfonts()
+
 #create ggplot uniform map format function. 
   #-has two zoom options: zoom_on_KC for King County, and zoom_on_Seattle for Seattle
-ggplot_unform_map_format_function <- function(df, variable, zoom_on_KC = FALSE, zoom_on_Seattle = FALSE) {
-  df %>%
+ggplot_unform_map_format_function <- function(df, variable, pct = FALSE, zoom_on_KC = FALSE, zoom_on_Seattle = FALSE, title = variable, save = FALSE, small_font = FALSE, font = 8) {
+  p <- df %>%
     ggplot(aes_string(fill = variable)) + 
     geom_sf(color = NA) +
     {if(zoom_on_KC == TRUE) coord_sf(xlim = c(-122.43, -121.18), ylim = c(47.15, 47.77))} +
     {if(zoom_on_Seattle == TRUE) coord_sf(xlim = c(-122.5, -122.248), ylim = c(47.495, 47.74))} +
-    ggtitle(variable) +
+    ggtitle(title) +
     theme_void() +
-    scale_fill_viridis_c(option = "viridis", name = "") +
-    theme(legend.position = "none")
+    scale_fill_viridis_c(option = "viridis", name = "", limits = c(0, 1000)) +
+    {if(pct == TRUE) scale_fill_viridis_c(option = "viridis", name = "", limits = c(0, 1), labels = percent)} +
+    theme(legend.position = "right") +
+    theme(text = element_text(family = "Georgia", size = 10)) +
+    {if(small_font == TRUE)theme(text = element_text(family = "Georgia", size = font))} +
+    theme(plot.margin=grid::unit(c(0,0,0,0), "mm"))
+  if(save == TRUE){
+    ggsave(paste0("Maps/Final_maps_for_paper/", variable, ".jpg"), width = 12.5, height = 8, units = "cm")
+  }else{
+    print(p)
+  }
 }
 
 #test function
-ggplot_unform_map_format_function(ACS_2018_variables_county_clean, "pct_rentersE")
+ggplot_unform_map_format_function(ACS_2018_variables_tract_clean, "rentersE", pct = FALSE, title = "Renters", save = FALSE)
 
 
+#plots for paper
+#renters per capita
+ggplot_unform_map_format_function(ACS_2018_variables_tract_clean, "pct_rentersE", pct = TRUE, title = "Renters per capita", save = TRUE)
+
+#seniors per capita
+ggplot_unform_map_format_function(ACS_2018_variables_tract_clean, "pct_seniorsE", pct = TRUE, title = "Seniors per capita", save = TRUE)
+
+#disabled per capita
+ggplot_unform_map_format_function(ACS_2018_variables_tract_clean, "pct_have_disabilityE", pct = TRUE, title = "People with disabilities per capita", save = TRUE)
+
+#hispanic/latino per capita
+ggplot_unform_map_format_function(ACS_2018_variables_tract_clean, "pct_hispanic_or_latinoE", pct = TRUE, title = "Hispanic/Latino people per capita", save = TRUE)
+
+
+
+```
+
+```{r Create page of all maps for appendix}
 #create list of variables needed to create plots for
-variables_to_plot_list <- colnames(ACS_2018_variables_county_clean[endsWith(colnames(ACS_2018_variables_county_clean), "E")])
-variables_to_plot_list <- variables_to_plot_list[-c(1:3)]
-variables_to_plot_list <- variables_to_plot_list[-length(variables_to_plot_list)]
-variable_plot_length <- length(variables_to_plot_list)
+  #vector of all titles
+  formatted_titles_vec <- c("Recent immigrants",
+                             "Seniors",
+                             "African-American",
+                             "American Indian and Alaska Native",
+                             "Asian-American (Chinese)",
+                             "Asian-American (Filipino)",
+                             "Asian-American (Indian/Subcontinent)",
+                             "Asian-American (Korean)",
+                             "Asian-American (Vietnamese)",
+                             "Children (younger than 5)",
+                             "Disabled",
+                             "College Students",
+                             "Hispanic/Latino",
+                             "Renters",
+                             "Middle-eastern North African",
+                             "Migrant Workers",
+                             "Veterans",
+                             "Pacific Islander",
+                             "Russian")
 
-list_of_variables_for_maps <- data.frame("id" = 1:(variable_plot_length),
-                                         "variable_to_plot" = c(variables_to_plot_list
-                                                               ),
-                                         stringsAsFactors = FALSE)
+
+  #total variables
+  total_variables_to_plot_list <- colnames(ACS_2018_variables_county_clean[endsWith(colnames(ACS_2018_variables_county_clean), "E")])
+  total_variables_to_plot_list <- total_variables_to_plot_list[-c(1:3)]
+  total_variables_to_plot_list <- total_variables_to_plot_list[!startsWith(total_variables_to_plot_list, "pct_")]
+  total_variables_to_plot_list <- total_variables_to_plot_list[-length(total_variables_to_plot_list)]
+  total_variable_plot_length <- length(total_variables_to_plot_list)
+  
+  list_of_variables_for_maps_total <- data.frame("id" = 1:(total_variable_plot_length),
+                                           "variable_to_plot" = c(total_variables_to_plot_list
+                                                                 ),
+                                           "title" = formatted_titles_vec,
+                                           stringsAsFactors = FALSE)
+  
+  #pct variables
+  pct_variables_to_plot_list <- colnames(ACS_2018_variables_county_clean[endsWith(colnames(ACS_2018_variables_county_clean), "E")])
+  pct_variables_to_plot_list <- pct_variables_to_plot_list[-c(1:3)]
+  pct_variables_to_plot_list <- pct_variables_to_plot_list[startsWith(pct_variables_to_plot_list, "pct_")]
+  pct_variable_plot_length <- length(pct_variables_to_plot_list)
+  
+  list_of_variables_for_maps_pct <- data.frame("id" = 1:(pct_variable_plot_length),
+                                           "variable_to_plot" = c(pct_variables_to_plot_list
+                                                                 ),
+                                           "title" = formatted_titles_vec,
+                                           stringsAsFactors = FALSE)
 
 
-#create all plots
-map_list_tract = list()
-for(i in 1:variable_plot_length){
-  p <- ggplot_unform_map_format_function(ACS_2018_variables_tract_clean, list_of_variables_for_maps$variable_to_plot[i])
-  map_list_tract[[i]] <- p
+#create all total plots
+total_map_list_tract = list()
+for(i in 1:total_variable_plot_length){
+  j <- ggplot_unform_map_format_function(ACS_2018_variables_tract_clean,
+                                         list_of_variables_for_maps_total$variable_to_plot[i],
+                                         title = list_of_variables_for_maps_total$title[i],
+                                         pct = FALSE, save = FALSE, small_font = TRUE, font = 5)
+  total_map_list_tract[[i]] <- j
 }
-map_list_county = list()
-for(i in 1:variable_plot_length){
-  p <- ggplot_unform_map_format_function(ACS_2018_variables_tract_clean, list_of_variables_for_maps$variable_to_plot[i])
-  map_list_county[[i]] <- p
+
+
+#create single page of all total plots
+  ggarrange(total_map_list_tract[[1]],
+            total_map_list_tract[[2]],
+            total_map_list_tract[[3]],
+            total_map_list_tract[[4]],
+            total_map_list_tract[[5]],
+            total_map_list_tract[[6]],
+            total_map_list_tract[[7]],
+            total_map_list_tract[[8]],
+            total_map_list_tract[[9]],
+            legend = "bottom",
+            common.legend = TRUE)
+  ggsave("Maps/Final_maps_for_paper/total_maps_1.jpg")
+  
+  ggarrange(total_map_list_tract[[10]],
+            total_map_list_tract[[11]],
+            total_map_list_tract[[12]],
+            total_map_list_tract[[13]],
+            total_map_list_tract[[14]],
+            total_map_list_tract[[15]],
+            total_map_list_tract[[16]],
+            total_map_list_tract[[17]],
+            total_map_list_tract[[18]],
+            total_map_list_tract[[19]],
+            legend = "bottom",
+            common.legend = TRUE)
+  ggsave("Maps/Final_maps_for_paper/total_maps_2.jpg")
+
+#create all pct plots
+pct_map_list_tract = list()
+for(i in 1:pct_variable_plot_length){
+  j <- ggplot_unform_map_format_function(ACS_2018_variables_tract_clean,
+                                         list_of_variables_for_maps_pct$variable_to_plot[i],
+                                         title = list_of_variables_for_maps_pct$title[i],
+                                         pct = TRUE, save = FALSE, small_font = TRUE, font = 5)
+  pct_map_list_tract[[i]] <- j
 }
 
+
+
+#create single page of all pct plots
+  ggarrange(pct_map_list_tract[[1]],
+            pct_map_list_tract[[2]],
+            pct_map_list_tract[[3]],
+            pct_map_list_tract[[4]],
+            pct_map_list_tract[[5]],
+            pct_map_list_tract[[6]],
+            pct_map_list_tract[[7]],
+            pct_map_list_tract[[8]],
+            pct_map_list_tract[[9]],
+            legend = "bottom",
+            common.legend = TRUE)
+  ggsave("Maps/Final_maps_for_paper/pct_maps_1.jpg")
+  
+  ggarrange(pct_map_list_tract[[10]],
+            pct_map_list_tract[[11]],
+            pct_map_list_tract[[12]],
+            pct_map_list_tract[[13]],
+            pct_map_list_tract[[14]],
+            pct_map_list_tract[[15]],
+            pct_map_list_tract[[16]],
+            pct_map_list_tract[[17]],
+            pct_map_list_tract[[18]],
+            pct_map_list_tract[[19]],
+            legend = "bottom",
+            common.legend = TRUE)
+  ggsave("Maps/Final_maps_for_paper/pct_maps_2.jpg")
+```
+
+
+```{r Save jpgs of all maps}
 #save all plots as jpgs
 for(i in 1:length(map_list_tract)){
   ggsave(map_list_tract[[i]], file=paste0("Maps/tract_plot_", list_of_variables_for_maps$variable_to_plot[i],".jpg"), width = 14, height = 5, units = "cm")
@@ -435,6 +575,8 @@ for(i in 1:length(map_list_county)){
 }
 
 ```
+
+
 
 ```{r Test Mapview package}
 library(mapview)
